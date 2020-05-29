@@ -37,3 +37,11 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+# For the Mac users
+.DS_Store
+
+# For python stuff
+*.pyc
+.ipynb_checkpoints
+
