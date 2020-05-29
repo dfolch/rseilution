@@ -1,5 +1,6 @@
 # rseilution
 R tools for deriving air toxicity for geographic coordinates
+
 ---
 This code will append annual air toxicity data to any point location within the United States. The toxicity data come from the US Environmental Protection Agency's (EPA) [Risk-Screening Environmental Indicators (RSEI)](https://www.epa.gov/rsei) model, which is based on data collected for the [Toxic Release Inventory (TRI)](https://www.epa.gov/toxics-release-inventory-tri-program). 
 
@@ -20,7 +21,7 @@ results <- appendRSEI('my_points.csv', state='state_code', year='visit_year',
 ```
 ---
 
-The Jupyter Notebook and RMarkdown files in the repository contain more examples on the functionality and data output.
+We designed this to be accessible for both regular R users and non-R users alike. If you don't use R, you just need to install R and run the script as shown above by passing in your CSV (or SHP file). It will return a CSV (or SHP) that can be opened in other software. For R users, the script can take data frames, spatial points data frames and simple features objects, and it returns spatial points data frames that can be manipulated and plotted.
 
 RSEI toxicity data is provided by EPA as a 0.5 mile raster covering the entire US. The code associates each point with the raster cell it falls in, and returns the associated toxicity data aggregated over the selected year. The code also returns the annualized data allowing for toxicity maps to be produced.
 
@@ -29,6 +30,8 @@ Log of total toxicity for 2002 Rhode Island, with three points of interest added
 
 Log of lead toxicity for 2002 Rhode Island, with three points of interest added.
 ![lead toxicity](/test_data/ri_2002_lead.png)
+
+The [Jupyter Notebook](/RSEIlution_tutoiral.ipynb) and RMarkdown files in the repository contain more examples on the functionality and data output.
 
 ---
 We encourage collaborators who would like to extend the functionality. 
