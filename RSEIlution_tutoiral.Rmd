@@ -1,0 +1,322 @@
+---
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.4.2
+  kernelspec:
+    display_name: R
+    language: R
+    name: ir
+---
+
+# Introduction to RSEIloution: R tools for deriving air toxicity for geographic coordinates
+
+
+---
+
+
+The RSEIloution package attaches annual air toxicity data from the U.S. Environmental Protection Agency's (EPA) Risk-Screening Environmental Indicators (RSEI) model to geolocated points. This tutorial demonstrates the flexibility avaible in how points can be passed in and toxicity data returned from the RESI-loution package.
+
+
+Load the code
+
+```{r}
+source('RSEIAssignedToPoints.R')
+```
+
+---
+
+
+### Initial example using single state, single year - R data frame
+
+
+We begin with the simplest case: passing an R `data.frame` object containing coordinates in long/lat projection from a single state and a single year. In this example there are 3 points in Rhode Island corresponding to the year 2002. 
+
+```{r}
+# Build a data frame of points
+sp_df<-data.frame()
+sp_df<-data.frame(rbind(
+#RI pts
+c(41.486541,-71.308569),
+c(41.812033,-71.414641),
+c(41.8514,-71.4047633)))
+colnames(sp_df)<-c("latitude","longitude")
+sp_df
+```
+
+Since all the points are in a single state and single year, we can pass the two-character state code to the `state` parameter and the four digit year to the `year` parameter. We also need to tell the function the column names containing the coordiantes.
+
+
+<span style="color:red">WARNING. The first time pulling data for a particular state-year combo is very time consuming. Depending on download speeds, computational power and the size of the state, this could take from a couple minutes to over an hour.</span>
+
+```{r}
+spdf <- appendRSEI(data=sp_df,state='ri',year=2002,x_name='longitude',y_name='latitude')
+```
+
+The function returns an R "Spatial Points Data Frame." This object type contains its data in the `data` attribute. We can see that in addition to the lon/lat originally passed in, there are now columns for the state, year and ID added. The remaining columns come from the RSEI database starting with the total toxicity for the 0.5 mile square pixel in which the point falls, the pixel's population and the toxicity of specific chemicals in that pixel. Note that RSEI tracks over 600 toxic chemicals, the R object contains only those chemicals appearing near at least one of the points.
+
+```{r}
+spdf@data
+```
+
+The data can be subset for easier viewing of specific toxins, for examaple total toxicity and lead.
+
+```{r}
+spdf@data[,c("latitude","longitude","state","year","Toxicity","Lead.and.lead.compounds")]
+```
+
+A powerful feature of the RSEI data is that it is additive. This means that the sum of toxicity from the invidual chemicals equals the total toxicity.
+
+```{r}
+# reported total toxicity for row 2
+spdf@data[2,'Toxicity']
+```
+
+```{r}
+# sum of indivdual toxicities for row 2
+rowSums(spdf@data[2, !names(spdf@data) %in% c('New_ID','state','year','latitude','longitude','Toxicity','Pop')], na.rm=TRUE)
+```
+
+We can also plot toxicity using the full raster data.
+
+```{r}
+# read in the raster data
+ri_2002 = readRDS("grid_ri_2002.rds")
+```
+
+Plot the log of total toxicity.
+
+```{r}
+#png('ri_2002_toxicity.png')
+# plot the raster
+plot(log(ri_2002$Total)) 
+# convert the points to the same projection as the raster
+rsei_proj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
+spdf_proj <- spTransform(spdf,CRSobj = CRS(rsei_proj)) 
+# plot the points
+plot(spdf_proj, add=TRUE, col='red')
+#dev.off()
+```
+
+Plot the log of lead air toxicity using the same scale as total toxicity.
+
+```{r}
+#png('ri_2002_lead.png')
+tox_min = cellStats(log(ri_2002$Total), stat='min')  # min of total toxicity
+tox_max = cellStats(log(ri_2002$Total), stat='max')  # max of total toxicity
+plot(log(ri_2002$Lead.and.lead.compounds), zlim=(c(tox_min, tox_max)))
+plot(spdf_proj, add=TRUE, col='red')
+#dev.off()
+```
+
+### Single state, multiple years - R data frame
+
+
+This example contains points in Rhode Island for 2002 and 2003.
+
+```{r}
+sp_df<-data.frame()
+sp_df<-data.frame(rbind(
+#RI pts
+c(41.486541,-71.308569),
+c(41.486541,-71.308569),
+c(41.812033,-71.414641),
+c(41.812033,-71.414641),
+c(41.8514,-71.4047633),
+c(41.8514,-71.4047633)))
+colnames(sp_df)<-c("latitude","longitude")
+sp_df$Year<-c(2002,2003,2002,2003,2002,2003)
+sp_df
+```
+
+If we want RSEI data for mulitple years we must label each row with its year, and then tell the function the name of the column containing the year data.
+
+```{r}
+spdf <- appendRSEI(data=sp_df,state='ri',year='Year',x_name='longitude',y_name='latitude')
+```
+
+```{r}
+spdf@data
+```
+
+### Multiple states, multiple years - R data frame
+
+
+This example has points from Rhode Island and Deleware for 2002 and 2003.
+
+```{r}
+sp_df<-data.frame()
+
+sp_df<-data.frame(rbind(
+#RI pts
+c(41.486541,-71.308569),
+c(41.486541,-71.308569),
+c(41.812033,-71.414641),
+c(41.812033,-71.414641),
+c(41.8514,-71.4047633),
+c(41.8514,-71.4047633),
+#DE pts
+c(39.7298862,-75.5645039),
+c(39.7298862,-75.5645039),
+c(39.7379306,-75.5898776),
+c(39.7379306,-75.5898776),
+c(39.7417784,-75.6361824),
+c(39.7417784,-75.6361824)))
+colnames(sp_df)<-c("latitude","longitude")
+sp_df$state<-c("ri","ri","ri","ri","ri","ri","de","de","de","de","de","de")
+sp_df$year<-c(2002,2003,2002,2003,2002,2003,2002,2003,2002,2003,2002,2003)
+sp_df
+```
+
+Similar to the case of multiple years, if points are in different states, each record needs to be labled with its two letter state code. Instead of supplying the specific state argument as we did above, we now pass the column name to the `state` parameter.  
+
+```{r}
+spdf <- appendRSEI(sp_df,state="state",year="year",x_name="longitude",y_name="latitude")
+spdf@data
+```
+
+### Projections
+
+
+The function assumes that points are passed in as longitude/latitude coordinates. However, the points can enter in any projection if the proj4 projection string is passed to the `projection` parameter. Below is an example using a data frame containing points in the Universal Transverse Mercator projection.
+
+```{r}
+sp_df <- data.frame()
+sp_df <- data.frame(rbind(
+c(307274.07,4595343),
+c(299431.04,4631725),
+c(-62771.74 ,4418434),
+c(-68823.39,4420210)))
+colnames(sp_df)<-c("x","y")
+sp_df$state<-c("ri","ri","de","de")
+sp_df$year<-c(2002,2002,2002,2002)
+sp_df
+```
+
+```{r}
+utm_proj <- "+proj=utm +zone=19 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0"
+spdf <- appendRSEI(data=sp_df,state="state",year="year",x_name="x",y_name="y",
+                   projection=utm_proj)
+spdf@data
+```
+
+### Using spatial points data frame and simple features objects
+
+
+The function also supports R's major spatial data structures. We first build a `SpatialPointsDataFrame`.
+
+```{r}
+sp_df <- SpatialPointsDataFrame(coords=sp_df[,c("x","y")],
+                               data=sp_df,
+                               proj4string=CRS(utm_proj))
+```
+
+Now, pass the `sp` object to the function. Use of the `projection` and `x_name`/`y_name` parameters is not necesaary as these are used to construct an `sp` object from a `data.frame`
+
+```{r}
+spdf <- appendRSEI(data=sp_df,state="state",year="year")
+spdf@data
+```
+
+For simple features objects:
+
+```{r}
+require(sf)
+sf_df <- st_as_sf(sp_df,coords=c("x","y"),
+                  crs=utm_proj)
+spdf <- appendRSEI(data=sf_df,state="state",year="year")
+spdf@data
+```
+
+### Importing data from a file
+
+
+It is additionally possible to load existing data from file directly into the `appendRSEI` function. To do so, pass the file location as a string as the `data` parameter.
+
+
+We start with reading in CSV file. The remain syntax is similar to the earlier examples.
+
+```{r}
+spdf <- appendRSEI(data="test_data/sp_df.csv",state="state",year="year",
+                   x_name="longitude",y_name="latitude")
+```
+
+```{r}
+spdf@data
+```
+
+Next we read in a shapefile. Note that when passing in a `.shp` file (or objects from the `sp` or `sf` libraries to the function), the projection stored in the object is used automatically and that coordinate column name specifications are not necesaary.
+
+```{r}
+spdf <- appendRSEI(data="test_data/sp_df.shp",state="state",year="year")
+```
+
+```{r}
+spdf@data
+```
+
+Importing `.rds` files works much the same and allows the flexibility of importing any `R` object, for instance a data frame object.
+
+```{r}
+spdf <-appendRSEI(data="test_data/sp_df.rds",state="state",year="year",
+                  x_name="longitude",y_name="latitude")
+```
+
+```{r}
+spdf@data
+```
+
+### Storing the output
+
+
+To this point we have used only the `SpatialPointsDataFrame` object returned by the function call. The `out_file` parameter allows the results to be written to the hard drive.
+
+The RSEI data comes from EPA as a raster of 0.5 mile grid cells. The function downloads and processes this raster data. By default these files are stored as RDS files. They can optionally be converted to a variety of raster formats using the `raster` parameter or deleted by setting `raster=FALSE`.
+
+
+First is an example of storing the point data as a CSV.
+
+```{r}
+spdf <- appendRSEI(sp_df, state="state", year="year", x_name="longitude", y_name="latitude",
+                   out_file="rsei_output.csv")
+```
+
+Note that the spatial points data frame object is still returned.
+
+```{r}
+spdf@data
+```
+
+The data can also be saved as a shapefile. Note that the shapefile format truncates many of the column names. Note: if `rsei_output.shp` is already on your hard drive, then you will need to change the file name.
+
+```{r}
+spdf <- appendRSEI(sp_df, state="state", year="year", x_name="longitude", y_name="latitude",
+                   out_file="rsei_output.shp")
+```
+
+Or an RDS file (an R file type that when opened retains all the functionality of the original R object).
+
+```{r}
+spdf <- appendRSEI(sp_df, state="state", year="year", x_name="longitude", y_name="latitude",
+                   out_file="rsei_output.rds")
+```
+
+Available file types for `raster` are `rds` and those available through the `raster` package. Please note that some of the file types available through the raster package require the installation of the `rgdal`package or the `ncdf4` package. See the [`writeRaster` documentation](https://www.rdocumentation.org/packages/raster/versions/3.1-5/topics/writeRaster) for additional details. Those formats listed as not having mulitband support, `.asc`, `.sdat`, and `.rst`, are not suitable for the output and will produce an error if selected. State and year identifying information is appended to the front of a string entered into the `raster` parameter. 
+
+
+To produce native raster format objects, set the extension of the `raster` parameter to `.grd`.
+
+```{r}
+spdf <- appendRSEI(data="test_data/sp_df.shp",state="state",year="year",raster=".grd")
+```
+
+For GeoTiff formatted `raster` output, use:
+
+```{r}
+spdf <- appendRSEI(data="test_data/sp_df.shp",state="state",year="year",raster=".tif")
+```
+
+Multiple other formats available from the `raster` package can also be passed.
